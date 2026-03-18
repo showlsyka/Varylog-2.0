@@ -92,85 +92,36 @@ module count4gray_sub_jk(clock, b);
     assign b = q;
 endmodule
 
-module count4gray_reverse_jk(clock, dir, b);
+module count5gray_jk(clock, b);
     input clock;
-    output dir;
-    output [3:0] b;
+    output [4:0] b;
 
-    wire [4:0] q;
-    wire [4:0] j, k;
+    wire [4:0] j, k, q;
 
-    wire d;
-    assign d   = q[4];
-    assign dir = q[4];
-    assign b   = q[3:0];
+    assign j[4] =  q[3] & ~q[2] & ~q[1] & ~q[0];
+    assign k[4] =  q[3] &  q[0] & ~q[2] & ~q[1];
 
-    // ---------------------------------
-    // ????????? ????????? ?????????
-    // ---------------------------------
-    wire Tsum = ~d &  q[3] & ~q[2] & ~q[1] & ~q[0]; // 0,1000
-    wire Tsub =  d & ~q[3] & ~q[2] & ~q[1] & ~q[0]; // 1,0000
+    assign j[3] =  q[2] & ~q[1] & ~q[0];
+    assign k[3] =  q[4] & ~q[2] & ~q[1];
 
-    // ---------------------------------
-    // dir
-    // ---------------------------------
-    assign j[4] = Tsum;
-    assign k[4] = Tsub;
+    assign j[2] =  q[1] & ~q[3] & ~q[0];
+    assign k[2] =  q[1] &  q[3] & ~q[0];
 
-    // ---------------------------------
-    // q3
-    // SUM/SUB + ???????? ?? ????????
-    // ---------------------------------
-    assign j[3] = (~d &  q[2] & ~q[1] & ~q[0]) |
-                  ( d & ~q[2] & ~q[1] & ~q[0] & ~Tsub);
+    assign j[1] = (q[0] &  q[2] &  q[3]) |
+                  (q[0] & ~q[2] & ~q[3]);
 
-    assign k[3] = (~d & ~q[2] & ~q[1] & ~q[0] & ~Tsum) |
-                  ( d &  q[2] & ~q[1] & ~q[0]);
+    assign k[1] = (q[0] &  q[2] & ~q[3]) |
+                  (q[0] &  q[3] & ~q[2]);
 
-    // ---------------------------------
-    // q2
-    // ---------------------------------
-    assign j[2] = (~d &  q[1] & ~q[3] & ~q[0]) |
-                  ( d &  q[1] &  q[3] & ~q[0]);
+    assign j[0] = ( q[1] &  q[2] & ~q[3]) |
+                  ( q[1] &  q[3] & ~q[2]) |
+                  ( q[2] &  q[3] & ~q[1]) |
+                  (~q[1] & ~q[2] & ~q[3]);
 
-    assign k[2] = (~d &  q[1] &  q[3] & ~q[0]) |
-                  ( d &  q[1] & ~q[3] & ~q[0]);
-
-    // ---------------------------------
-    // q1
-    // ---------------------------------
-    assign j[1] = (~d & ((q[0] & ~q[2] & ~q[3]) |
-                         (q[0] &  q[2] &  q[3]))) |
-                  ( d & ((q[0] &  q[2] & ~q[3]) |
-                         (q[0] &  q[3] & ~q[2])));
-
-    assign k[1] = (~d & ((q[0] &  q[2] & ~q[3]) |
-                         (q[0] &  q[3] & ~q[2]))) |
-                  ( d & ((q[0] & ~q[2] & ~q[3]) |
-                         (q[0] &  q[2] &  q[3])));
-
-    // ---------------------------------
-    // q0
-    // ?? ?????????? ??? ???? ????????????? ??????? ? 1
-    // ---------------------------------
-    assign j[0] = (~d & (( q[1] &  q[2] & ~q[3]) |
-                         ( q[1] &  q[3] & ~q[2]) |
-                         ( q[2] &  q[3] & ~q[1]) |
-                         (~q[1] & ~q[2] & ~q[3]))) |
-                  ( d & (( q[1] &  q[2] &  q[3]) |
-                         ( q[1] & ~q[2] & ~q[3]) |
-                         ( q[2] & ~q[1] & ~q[3]) |
-                         ( q[3] & ~q[1] & ~q[2]))) |
-                  Tsum | Tsub;
-
-    assign k[0] = (~d & (( q[1] &  q[2] &  q[3]) |
-                         ( q[1] & ~q[2] & ~q[3]) |
-                         ( q[2] & ~q[1] & ~q[3]) |
-                         ( q[3] & ~q[1] & ~q[2]))) |
-                  ( d & (( q[1] &  q[2] & ~q[3]) |
-                         ( q[1] &  q[3] & ~q[2]) |
-                         ( q[2] &  q[3] & ~q[1]) |
-                         (~q[1] & ~q[2] & ~q[3])));
+    assign k[0] = ( q[1] &  q[2] &  q[3]) |
+                  ( q[1] & ~q[2] & ~q[3]) |
+                  ( q[2] & ~q[1] & ~q[3]) |
+                  ( q[3] & ~q[1] & ~q[2]);
 
     genvar i;
     generate
@@ -178,7 +129,10 @@ module count4gray_reverse_jk(clock, dir, b);
             jkff jkffi(clock, j[i], k[i], q[i]);
     endgenerate
 
+    assign b = q;
+
 endmodule
+
 `timescale 1ns/1ns
 `include "asiign.v"
 
@@ -186,12 +140,12 @@ module gray_jk_sum_sub_tb();
 
     reg clock = 0;
     wire dir;
-    wire [3:0] b;
-    wire dir;
-    wire [3:0] b;
+    wire [4:0] b;
+    wire [3:0] b_sum;
+    wire [3:0] b_sub;
 
 
-    count4gray_reverse_jk counter(clock, dir, b);
+    count5gray_jk counter(clock, b);
     count4gray_sum_jk sum_counter(clock, b_sum);
     count4gray_sub_jk sub_counter(clock, b_sub);
 
