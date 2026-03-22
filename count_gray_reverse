@@ -1,0 +1,259 @@
+module jkff_en (
+    input  clk,
+    input  enable,
+    input  j,
+    input  k,
+    output reg q = 0
+);
+    always @(posedge clk) begin
+        if (enable) begin
+            if (j && k)      q <= ~q;
+            else if (j)      q <= 1'b1;
+            else if (k)      q <= 1'b0;
+        end
+    end
+endmodule
+
+
+module freq_divider #(parameter NUMBER = 125_000) (
+    input  clock,
+    output reg enable = 0
+);
+    reg [31:0] cnt = 0;
+
+    always @(posedge clock) begin
+        if (cnt == NUMBER - 1) begin
+            cnt    <= 0;
+            enable <= 1'b1;
+        end
+        else begin
+            cnt    <= cnt + 1'b1;
+            enable <= 1'b0;
+        end
+    end
+endmodule
+
+
+module count_gray_v2 #(parameter mode="SUM") (
+    input  clk,
+    input  enable,
+    input  dir,
+    output [3:0] c
+);
+    wire [3:0] q;
+    reg  [3:0] J, K;
+
+    assign c = q;
+
+generate
+
+// =========================
+// SUM
+// =========================
+if (mode == "SUM") begin
+
+    always @*
+        case (q)
+            4'b0000 : {K,J} = 8'bxxxx0001;
+            4'b0001 : {K,J} = 8'bxxx0001x;
+            4'b0011 : {K,J} = 8'bxx0100xx;
+            4'b0010 : {K,J} = 8'bxx0x01x0;
+            4'b0110 : {K,J} = 8'bx00x0xx1;
+            4'b0111 : {K,J} = 8'bx0100xxx;
+            4'b0101 : {K,J} = 8'bx0x10x0x;
+            4'b0100 : {K,J} = 8'bx0xx1000;
+            4'b1100 : {K,J} = 8'b00xxxx01;
+            4'b1101 : {K,J} = 8'b00x0xx1x;
+            4'b1111 : {K,J} = 8'b0001xxxx;
+            4'b1110 : {K,J} = 8'b010xxxx0;
+            4'b1010 : {K,J} = 8'b0x0xx0x1;
+            4'b1011 : {K,J} = 8'b0x1000xx;
+            4'b1001 : {K,J} = 8'b0xx10x0x;
+            4'b1000 : {K,J} = 8'b1xxxx000;
+            default : {K,J} = 8'bxxxxxxxx;
+        endcase
+
+end
+
+// =========================
+// SUB
+// =========================
+else if (mode == "SUB") begin
+
+    always @*
+        case (q)
+            4'b0000 : {K,J} = 8'bxxxx1000;
+            4'b0001 : {K,J} = 8'bxxx1000x;
+            4'b0011 : {K,J} = 8'bxx1000xx;
+            4'b0010 : {K,J} = 8'bxx0x00x1;
+            4'b0110 : {K,J} = 8'bx10x0xx0;
+            4'b0111 : {K,J} = 8'bx0010xxx;
+            4'b0101 : {K,J} = 8'bx0x00x1x;
+            4'b0100 : {K,J} = 8'bx0xx0x01;
+            4'b1100 : {K,J} = 8'b10xxxx00;
+            4'b1101 : {K,J} = 8'b00x1xx0x;
+            4'b1111 : {K,J} = 8'b0010xxxx;
+            4'b1110 : {K,J} = 8'b000xxxx1;
+            4'b1010 : {K,J} = 8'b0x0xx1x0;
+            4'b1011 : {K,J} = 8'b0x01x0xx;
+            4'b1001 : {K,J} = 8'b0xx0x01x;
+            4'b1000 : {K,J} = 8'b0xxxx001;
+            default : {K,J} = 8'bxxxxxxxx;
+        endcase
+
+end
+
+// =========================
+// REVERSE
+// dir = 0 -> SUM
+// dir = 1 -> SUB
+// =========================
+else begin
+
+    always @* begin
+        if (dir == 1'b0) begin
+            case (q)
+                4'b0000 : {K,J} = 8'bxxxx0001;
+                4'b0001 : {K,J} = 8'bxxx0001x;
+                4'b0011 : {K,J} = 8'bxx0100xx;
+                4'b0010 : {K,J} = 8'bxx0x01x0;
+                4'b0110 : {K,J} = 8'bx00x0xx1;
+                4'b0111 : {K,J} = 8'bx0100xxx;
+                4'b0101 : {K,J} = 8'bx0x10x0x;
+                4'b0100 : {K,J} = 8'bx0xx1000;
+                4'b1100 : {K,J} = 8'b00xxxx01;
+                4'b1101 : {K,J} = 8'b00x0xx1x;
+                4'b1111 : {K,J} = 8'b0001xxxx;
+                4'b1110 : {K,J} = 8'b010xxxx0;
+                4'b1010 : {K,J} = 8'b0x0xx0x1;
+                4'b1011 : {K,J} = 8'b0x1000xx;
+                4'b1001 : {K,J} = 8'b0xx10x0x;
+                4'b1000 : {K,J} = 8'b1xxxx000;
+                default : {K,J} = 8'bxxxxxxxx;
+            endcase
+        end
+        else begin
+            case (q)
+                4'b0000 : {K,J} = 8'bxxxx1000;
+                4'b0001 : {K,J} = 8'bxxx1000x;
+                4'b0011 : {K,J} = 8'bxx1000xx;
+                4'b0010 : {K,J} = 8'bxx0x00x1;
+                4'b0110 : {K,J} = 8'bx10x0xx0;
+                4'b0111 : {K,J} = 8'bx0010xxx;
+                4'b0101 : {K,J} = 8'bx0x00x1x;
+                4'b0100 : {K,J} = 8'bx0xx0x01;
+                4'b1100 : {K,J} = 8'b10xxxx00;
+                4'b1101 : {K,J} = 8'b00x1xx0x;
+                4'b1111 : {K,J} = 8'b0010xxxx;
+                4'b1110 : {K,J} = 8'b000xxxx1;
+                4'b1010 : {K,J} = 8'b0x0xx1x0;
+                4'b1011 : {K,J} = 8'b0x01x0xx;
+                4'b1001 : {K,J} = 8'b0xx0x01x;
+                4'b1000 : {K,J} = 8'b0xxxx001;
+                default : {K,J} = 8'bxxxxxxxx;
+            endcase
+        end
+    end
+
+end
+
+endgenerate
+
+    jkff_en ff0 (.clk(clk), .enable(enable), .j(J[0]), .k(K[0]), .q(q[0]));
+    jkff_en ff1 (.clk(clk), .enable(enable), .j(J[1]), .k(K[1]), .q(q[1]));
+    jkff_en ff2 (.clk(clk), .enable(enable), .j(J[2]), .k(K[2]), .q(q[2]));
+	 jkff_en ff3 (.clk(clk), .enable(enable), .j(J[3]), .k(K[3]), .q(q[3]));
+endmodule
+
+
+module count_gray_v2_segment_driver (
+    input  [3:0] counter,
+    input        clock,
+    input        enable_clock,
+    output reg [7:0] indicator_select,
+    output reg [7:0] segments
+);
+    reg [1:0] scan = 0;
+    reg current_bit;
+
+    always @(posedge clock) begin
+        if (enable_clock)
+            scan <= scan + 1'b1;
+    end
+
+    always @* begin
+        indicator_select = 8'b1111_1111;
+        current_bit      = 1'b0;
+
+        case (scan)
+            2'd0: begin
+                indicator_select = 8'b1111_1110;
+                current_bit = counter[3];
+            end
+            2'd1: begin
+                indicator_select = 8'b1111_1101;
+                current_bit = counter[2];
+            end
+            2'd2: begin
+                indicator_select = 8'b1111_1011;
+                current_bit = counter[1];
+            end
+            default: begin
+                indicator_select = 8'b1111_0111;
+                current_bit = counter[0];
+            end
+        endcase
+
+        case (current_bit)
+            1'b0: segments = 8'b1100_0000; // 0
+            1'b1: segments = 8'b1111_1001; // 1
+            default: segments = 8'b1111_1111;
+        endcase
+    end
+endmodule
+
+
+module counter_top (
+    input        clock,
+    input        dir_button,
+    output [3:0] leds,
+    output [7:0] indicator_select,
+    output [7:0] segments
+);
+    wire clock_count_en;
+    wire clock_ind_en;
+    wire [3:0] c;
+
+    // если кнопка на плате активная LOW, раскомментируй это:
+    // wire dir = ~dir_button;
+
+    // если кнопка активная HIGH:
+    wire dir = dir_button;
+
+    freq_divider #(.NUMBER(25_000_000)) fd_step1 (
+        .clock(clock),
+        .enable(clock_count_en)
+    );
+
+    freq_divider #(.NUMBER(5_000)) fd_step2 (
+        .clock(clock),
+        .enable(clock_ind_en)
+    );
+
+    count_gray_v2 #(.mode("REVERSE")) cnt (
+        .clk(clock),
+        .enable(clock_count_en),
+        .dir(dir),
+        .c(c)
+    );
+
+    assign leds = c;
+
+    count_gray_v2_segment_driver segment_driver (
+        .counter(c),
+        .clock(clock),
+        .enable_clock(clock_ind_en),
+        .indicator_select(indicator_select),
+        .segments(segments)
+    );
+endmodule
