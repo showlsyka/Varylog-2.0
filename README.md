@@ -6,3 +6,8 @@
 
 <img width="1267" height="294" alt="image" src="https://github.com/user-attachments/assets/86f0cd01-f28e-4723-8dc1-d84b294b52f7" />
 
+ШИМ
+
+<img width="1294" height="369" alt="image" src="https://github.com/user-attachments/assets/51da4efc-d8f0-4d17-acac-7a68477e0896" />
+
+
