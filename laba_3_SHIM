@@ -1,0 +1,152 @@
+module Data2Segments #(
+    parameter Size = 5,
+    parameter Signed = 0,              // 0 = No, 1 = Yes
+    parameter ClockPeriod_ns = 20,
+    parameter RefreshTime_ns = 20_000  // 50 kHz
+)(
+    input  logic Clock,
+    input  logic [Size-1:0] Data,
+    output logic [((Signed==0)?clog10_func(1<<Size):(clog10_func(1<<(Size-1))+1))-1:0] Indicators,
+    output logic [7:0] Segments
+);
+
+    // -----------------------------
+    // service functions
+    // -----------------------------
+    function automatic integer clog10_func(input integer n);
+        integer t;
+        begin
+            if (n < 1)
+                clog10_func = 1;
+            else begin
+                t = 0;
+                while (n > 0) begin
+                    t = t + 1;
+                    n = n / 10;
+                end
+                clog10_func = t;
+            end
+        end
+    endfunction
+
+    function automatic [31:0] Bin2BCD_func(input [31:0] B, input integer Digits4);
+        integer i;
+        reg [31:0] tmp;
+        reg [31:0] X;
+        begin
+            if (Digits4 == 4)
+                Bin2BCD_func = B;
+            else begin
+                X = B;
+                tmp = 0;
+                for (i = 0; i < Digits4; i = i + 4) begin
+                    tmp[i +: 4] = X % 10;
+                    X = X / 10;
+                end
+                Bin2BCD_func = tmp;
+            end
+        end
+    endfunction
+
+    // 8-segment code: active low
+    // 0 = segment ON, 1 = OFF
+    // x = 0..9, 10 = minus, 15 = empty
+    function automatic [7:0] BCD2ESC_func(input [3:0] x);
+        begin
+            case (x)
+                4'd0  : BCD2ESC_func = 8'b1100_0000;
+                4'd1  : BCD2ESC_func = 8'b1111_1001;
+                4'd2  : BCD2ESC_func = 8'b1010_0100;
+                4'd3  : BCD2ESC_func = 8'b1011_0000;
+                4'd4  : BCD2ESC_func = 8'b1001_1001;
+                4'd5  : BCD2ESC_func = 8'b1001_0010;
+                4'd6  : BCD2ESC_func = 8'b1000_0010;
+                4'd7  : BCD2ESC_func = 8'b1111_1000;
+                4'd8  : BCD2ESC_func = 8'b1000_0000;
+                4'd9  : BCD2ESC_func = 8'b1001_0000;
+                4'd10 : BCD2ESC_func = 8'b1011_1111; // minus
+                default: BCD2ESC_func = 8'b1111_1111; // empty
+            endcase
+        end
+    endfunction
+
+    // -----------------------------
+    // internal constants
+    // -----------------------------
+    localparam integer ISize        = (Signed == 0) ? clog10_func(1<<Size)
+                                                    : (clog10_func(1<<(Size-1)) + 1);
+    localparam integer BCDSize      = 4*ISize;
+    localparam integer Prescale     = RefreshTime_ns / ClockPeriod_ns / ISize;
+    localparam integer ICounterSize = (ISize > 1) ? $clog2(ISize) : 1;
+
+    // -----------------------------
+    // internal signals
+    // -----------------------------
+    logic [BCDSize-1:0] BCD;
+    logic [ICounterSize-1:0] ICounter = 0;
+    logic [$clog2(Prescale)-1:0] RefreshCounter = 0;
+    logic Enable;
+
+    // -----------------------------
+    // refresh enable
+    // -----------------------------
+    generate
+        if (Prescale > 1) begin
+            always_ff @(posedge Clock) begin
+                if (RefreshCounter == Prescale - 1) begin
+                    RefreshCounter <= 0;
+                    Enable <= 1'b1;
+                end
+                else begin
+                    RefreshCounter <= RefreshCounter + 1'b1;
+                    Enable <= 1'b0;
+                end
+            end
+        end
+        else begin
+            always_comb Enable = 1'b1;
+        end
+    endgenerate
+
+    // -----------------------------
+    // binary -> BCD
+    // -----------------------------
+    always_comb begin
+        if (Signed == 0) begin
+            BCD = BCDSize'(Bin2BCD_func(Data, BCDSize));
+        end
+        else begin
+            BCD = {
+                (Data[Size-1] == 1'b0) ? 4'hf : 4'ha,
+                (BCDSize-4)'(Bin2BCD_func(Data[Size-2:0], BCDSize-4))
+            };
+        end
+    end
+
+    // -----------------------------
+    // indicator scan counter
+    // -----------------------------
+    always_ff @(posedge Clock) begin
+        if (Enable) begin
+            if (ICounter == ISize - 1)
+                ICounter <= 0;
+            else
+                ICounter <= ICounter + 1'b1;
+        end
+    end
+
+    // -----------------------------
+    // outputs
+    // -----------------------------
+    always_comb begin
+        if (ISize > 1) begin
+            Indicators = ~(1'b1 << ICounter);
+            Segments   = BCD2ESC_func(BCD[4*ICounter +: 4]);
+        end
+        else begin
+            Indicators = 1'b0;
+            Segments   = BCD2ESC_func(BCD[3:0]);
+        end
+    end
+
+endmodule
