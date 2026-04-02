@@ -1,18 +1,229 @@
+module SelectNPulse #(parameter N = 10) (
+    input  logic Clock,
+    output logic Pulse
+);
+    logic [$clog2(N)-1:0] Counter = 0;
+
+    always_ff @(posedge Clock) begin
+        if (Pulse)
+            Counter <= 0;
+        else
+            Counter <= Counter + 1'b1;
+    end
+
+    assign Pulse = (Counter == N - 1);
+endmodule
+
+
+
+module Filter #(
+    parameter Size = 3,
+    parameter ClockPeriod_ns = 20,
+    parameter FilterPeriod_ns = 1_000_000
+)(
+    input  logic Clock,
+    input  logic [Size-1:0] I,
+    output logic [Size-1:0] O
+);
+    localparam integer Number   = 4;
+    localparam integer Prescale = FilterPeriod_ns / ClockPeriod_ns / (Number - 1);
+
+    logic Enable;
+    logic [Number-1:0] Register [Size-1:0];
+    integer i;
+
+    initial begin
+        O = {Size{1'b1}};
+        for (i = 0; i < Size; i = i + 1)
+            Register[i] = {Number{1'b1}};
+    end
+
+    generate
+        if (Prescale > 1)
+            SelectNPulse #(.N(Prescale)) S1 (.Clock(Clock), .Pulse(Enable));
+        else
+            assign Enable = 1'b1;
+    endgenerate
+
+    always_ff @(posedge Clock) begin
+        if (Enable) begin
+            for (i = 0; i < Size; i = i + 1)
+                Register[i] <= {Register[i][Number-2:0], I[i]};
+        end
+    end
+
+    always_ff @(posedge Clock) begin
+        if (Enable) begin
+            for (i = 0; i < Size; i = i + 1) begin
+                if ((Register[i] == {Number{1'b0}} && O[i] == 1'b1) ||
+                    (Register[i] == {Number{1'b1}} && O[i] == 1'b0))
+                    O[i] <= ~O[i];
+            end
+        end
+    end
+endmodule
+
+
+
+module PulseGenerator #(
+    parameter ClockPeriod_ns     = 20,
+    parameter PauseInterval_ns   = 450_000_000,
+    parameter RepeatsInterval_ns = 150_000_000
+)(
+    input  logic Clock,
+    input  logic iUp,
+    input  logic iDown,
+    output logic oUp,
+    output logic oDown
+);
+    localparam integer MaxPause    = PauseInterval_ns   / ClockPeriod_ns;
+    localparam integer MaxRepeats  = RepeatsInterval_ns / ClockPeriod_ns;
+    localparam integer MaxInterval = (MaxPause > MaxRepeats) ? MaxPause : MaxRepeats;
+    localparam integer CSize       = $clog2(MaxInterval + 1);
+
+    typedef enum logic [1:0] {Idle, Pause, Repeats} state_t;
+
+    logic [CSize-1:0] Counter = 0;
+    logic Pulse = 0;
+    logic Pressed;
+    state_t State = Idle;
+
+    assign Pressed = ~(iUp & iDown);
+
+    always_comb begin
+        oUp   = Pulse & ~iUp;
+        oDown = Pulse & ~iDown;
+    end
+
+    always_ff @(posedge Clock) begin
+        if (Pressed) begin
+            case (State)
+                Idle: begin
+                    State <= Pause;
+                    Pulse <= 1'b1;
+                    Counter <= 0;
+                end
+
+                Pause: begin
+                    if (Counter == MaxPause) begin
+                        State   <= Repeats;
+                        Pulse   <= 1'b1;
+                        Counter <= 0;
+                    end
+                    else begin
+                        Pulse   <= 1'b0;
+                        Counter <= Counter + 1'b1;
+                    end
+                end
+
+                Repeats: begin
+                    if (Counter == MaxRepeats) begin
+                        Pulse   <= 1'b1;
+                        Counter <= 0;
+                    end
+                    else begin
+                        Pulse   <= 1'b0;
+                        Counter <= Counter + 1'b1;
+                    end
+                end
+            endcase
+        end
+        else begin
+            State   <= Idle;
+            Counter <= 0;
+            Pulse   <= 1'b0;
+        end
+    end
+endmodule
+
+
+
+module DataCounter #(
+    parameter Size = 5
+)(
+    input  logic Clock,
+    input  logic Up,
+    input  logic Reset,
+    input  logic Down,
+    output logic [Size-1:0] Data
+);
+    always_ff @(posedge Clock) begin
+        if (~Reset)
+            Data <= 0;
+        else if (Up) begin
+            if (Data < (2**Size - 1))
+                Data <= Data + 1'b1;
+        end
+        else if (Down) begin
+            if (Data != 0)
+                Data <= Data - 1'b1;
+        end
+    end
+endmodule
+
+
+
+module DataGenerator #(
+    parameter Size               = 5,
+    parameter ClockPeriod_ns     = 20,
+    parameter FilterPeriod_ns    = 1_000_000,
+    parameter PauseInterval_ns   = 450_000_000,
+    parameter RepeatsInterval_ns = 150_000_000
+)(
+    input  logic Clock,
+    input  logic Button_Up,
+    input  logic Button_Reset,
+    input  logic Button_Down,
+    output logic [Size-1:0] Data
+);
+    logic FilteredUp, FilteredReset, FilteredDown;
+    logic Up, Down;
+
+    Filter #(
+        .Size(3),
+        .ClockPeriod_ns(ClockPeriod_ns),
+        .FilterPeriod_ns(FilterPeriod_ns)
+    ) F1 (
+        .Clock(Clock),
+        .I({Button_Up, Button_Reset, Button_Down}),
+        .O({FilteredUp, FilteredReset, FilteredDown})
+    );
+
+    PulseGenerator #(
+        .ClockPeriod_ns(ClockPeriod_ns),
+        .PauseInterval_ns(PauseInterval_ns),
+        .RepeatsInterval_ns(RepeatsInterval_ns)
+    ) PG1 (
+        .Clock(Clock),
+        .iUp(FilteredUp),
+        .iDown(FilteredDown),
+        .oUp(Up),
+        .oDown(Down)
+    );
+
+    DataCounter #(
+        .Size(Size)
+    ) DCnt1 (
+        .Clock(Clock),
+        .Up(Up),
+        .Reset(FilteredReset),
+        .Down(Down),
+        .Data(Data)
+    );
+endmodule
+
+
+
 module Data2Segments #(
     parameter Size = 5,
-    parameter Signed = 0,              // 0 = No, 1 = Yes
     parameter ClockPeriod_ns = 20,
-    parameter RefreshTime_ns = 20_000  // 50 kHz
+    parameter RefreshTime_ns = 20_000
 )(
     input  logic Clock,
     input  logic [Size-1:0] Data,
-    output logic [((Signed==0)?clog10_func(1<<Size):(clog10_func(1<<(Size-1))+1))-1:0] Indicators,
+    output logic [ISize-1:0] Indicators,
     output logic [7:0] Segments
 );
-
-    // -----------------------------
-    // service functions
-    // -----------------------------
     function automatic integer clog10_func(input integer n);
         integer t;
         begin
@@ -48,9 +259,6 @@ module Data2Segments #(
         end
     endfunction
 
-    // 8-segment code: active low
-    // 0 = segment ON, 1 = OFF
-    // x = 0..9, 10 = minus, 15 = empty
     function automatic [7:0] BCD2ESC_func(input [3:0] x);
         begin
             case (x)
@@ -64,68 +272,31 @@ module Data2Segments #(
                 4'd7  : BCD2ESC_func = 8'b1111_1000;
                 4'd8  : BCD2ESC_func = 8'b1000_0000;
                 4'd9  : BCD2ESC_func = 8'b1001_0000;
-                4'd10 : BCD2ESC_func = 8'b1011_1111; // minus
-                default: BCD2ESC_func = 8'b1111_1111; // empty
+                default: BCD2ESC_func = 8'b1111_1111;
             endcase
         end
     endfunction
 
-    // -----------------------------
-    // internal constants
-    // -----------------------------
-    localparam integer ISize        = (Signed == 0) ? clog10_func(1<<Size)
-                                                    : (clog10_func(1<<(Size-1)) + 1);
+    localparam integer ISize        = clog10_func(1<<Size);
     localparam integer BCDSize      = 4*ISize;
     localparam integer Prescale     = RefreshTime_ns / ClockPeriod_ns / ISize;
     localparam integer ICounterSize = (ISize > 1) ? $clog2(ISize) : 1;
 
-    // -----------------------------
-    // internal signals
-    // -----------------------------
     logic [BCDSize-1:0] BCD;
     logic [ICounterSize-1:0] ICounter = 0;
-    logic [$clog2(Prescale)-1:0] RefreshCounter = 0;
     logic Enable;
 
-    // -----------------------------
-    // refresh enable
-    // -----------------------------
-    generate
-        if (Prescale > 1) begin
-            always_ff @(posedge Clock) begin
-                if (RefreshCounter == Prescale - 1) begin
-                    RefreshCounter <= 0;
-                    Enable <= 1'b1;
-                end
-                else begin
-                    RefreshCounter <= RefreshCounter + 1'b1;
-                    Enable <= 1'b0;
-                end
-            end
-        end
-        else begin
-            always_comb Enable = 1'b1;
-        end
-    endgenerate
-
-    // -----------------------------
-    // binary -> BCD
-    // -----------------------------
     always_comb begin
-        if (Signed == 0) begin
-            BCD = BCDSize'(Bin2BCD_func(Data, BCDSize));
-        end
-        else begin
-            BCD = {
-                (Data[Size-1] == 1'b0) ? 4'hf : 4'ha,
-                (BCDSize-4)'(Bin2BCD_func(Data[Size-2:0], BCDSize-4))
-            };
-        end
+        BCD = BCDSize'(Bin2BCD_func(Data, BCDSize));
     end
 
-    // -----------------------------
-    // indicator scan counter
-    // -----------------------------
+    generate
+        if (ISize > 1)
+            SelectNPulse #(.N(Prescale)) S1 (.Clock(Clock), .Pulse(Enable));
+        else
+            assign Enable = 1'b1;
+    endgenerate
+
     always_ff @(posedge Clock) begin
         if (Enable) begin
             if (ICounter == ISize - 1)
@@ -135,9 +306,6 @@ module Data2Segments #(
         end
     end
 
-    // -----------------------------
-    // outputs
-    // -----------------------------
     always_comb begin
         if (ISize > 1) begin
             Indicators = ~(1'b1 << ICounter);
@@ -148,5 +316,177 @@ module Data2Segments #(
             Segments   = BCD2ESC_func(BCD[3:0]);
         end
     end
+endmodule
 
+
+
+module PWMGenerator (
+    Clock, Data, PWM, Synch
+);
+    parameter ClockPeriod_ns = 20,
+              PWMPeriod_ns   = 200_000,
+              PWMType        = "Centered",
+              Size           = 5;
+
+    input  bit Clock;
+    input  logic [Size-1:0] Data;
+    output logic PWM = 0, Synch = 0;
+
+    localparam integer k1        = (PWMType == "Centered") ? 2 : 1;
+    localparam integer Max       = 2**Size - 2;
+    localparam integer Prescaler = PWMPeriod_ns / ClockPeriod_ns / (Max + 1) / k1;
+
+    logic Enable, EndOfPeriod;
+    logic [Size-1:0] LoadedData = 0;
+    logic [Size-1:0] Counter = 0;
+
+    generate
+        if (Prescaler > 1)
+            SelectNPulse #(.N(Prescaler)) S1 (.Clock(Clock), .Pulse(Enable));
+        else
+            always_comb Enable = 1;
+    endgenerate
+
+    always_ff @(posedge Clock)
+        if (Enable && EndOfPeriod)
+            LoadedData <= Data;
+
+    always_ff @(posedge Clock)
+        if (Enable)
+            PWM <= (LoadedData > Counter);
+
+    generate
+        if (PWMType == "Front") begin : summative_counter
+            always_comb EndOfPeriod = (Counter == Max);
+
+            always_ff @(posedge Clock)
+                if (Enable)
+                    if (EndOfPeriod)
+                        Counter <= 0;
+                    else
+                        Counter <= Counter + 1'b1;
+
+            always_ff @(posedge Clock)
+                if (Enable)
+                    if ((LoadedData > 0) && (Counter == 0))
+                        Synch <= ~Synch;
+        end
+
+        else if (PWMType == "Back") begin : subtractive_counter
+            always_comb EndOfPeriod = (Counter == 0);
+
+            always_ff @(posedge Clock)
+                if (Enable)
+                    if (EndOfPeriod)
+                        Counter <= Max;
+                    else
+                        Counter <= Counter - 1'b1;
+
+            always_ff @(posedge Clock)
+                if (Enable)
+                    if ((LoadedData > 0) && (Counter == Max))
+                        Synch <= ~Synch;
+        end
+
+        else if (PWMType == "Centered") begin : reversed_counter
+            logic Direction = 0;
+
+            always_comb
+                EndOfPeriod = (~Direction && Counter == Max) ||
+                              ( Direction && Counter == 0);
+
+            always_ff @(posedge Clock)
+                if (Enable)
+                    if (EndOfPeriod)
+                        Direction <= ~Direction;
+                    else if (!Direction)
+                        Counter <= Counter + 1'b1;
+                    else
+                        Counter <= Counter - 1'b1;
+
+            always_ff @(posedge Clock)
+                if (Enable)
+                    if ((LoadedData > 0) && (~Direction && Counter == 0))
+                        Synch <= ~Synch;
+        end
+    endgenerate
+endmodule
+
+
+
+module DGandD2SandPWM (
+    Clock, Button_Up, Button_Reset, Button_Down,
+    Indicators, Segments, Synch, PWM
+);
+    parameter Size               = 5,
+              ClockPeriod_ns     = 20,
+              FilterPeriod_ns    = 1_000_000,
+              PauseInterval_ns   = 450_000_000,
+              RepeatsInterval_ns = 150_000_000,
+              RefreshTime_ns     = 20_000,   // 50 kHz
+              PWMPeriod_ns       = 200_000,  // 5 kHz
+              PWMType            = "Back";
+
+    function automatic integer clog10_func_top(input integer n);
+        integer t;
+        begin
+            if (n < 1)
+                clog10_func_top = 1;
+            else begin
+                t = 0;
+                while (n > 0) begin
+                    t = t + 1;
+                    n = n / 10;
+                end
+                clog10_func_top = t;
+            end
+        end
+    endfunction
+
+    localparam integer ISize = clog10_func_top(1<<Size);
+
+    input  bit Clock;
+    input  logic Button_Up, Button_Reset, Button_Down;
+    output logic [ISize-1:0] Indicators;
+    output logic [7:0] Segments;
+    output logic Synch, PWM;
+
+    logic [Size-1:0] Data;
+
+    DataGenerator #(
+        .Size(Size),
+        .ClockPeriod_ns(ClockPeriod_ns),
+        .FilterPeriod_ns(FilterPeriod_ns),
+        .PauseInterval_ns(PauseInterval_ns),
+        .RepeatsInterval_ns(RepeatsInterval_ns)
+    ) B1 (
+        .Clock(Clock),
+        .Button_Up(Button_Up),
+        .Button_Reset(Button_Reset),
+        .Button_Down(Button_Down),
+        .Data(Data)
+    );
+
+    Data2Segments #(
+        .Size(Size),
+        .ClockPeriod_ns(ClockPeriod_ns),
+        .RefreshTime_ns(RefreshTime_ns)
+    ) B2 (
+        .Clock(Clock),
+        .Data(Data),
+        .Indicators(Indicators),
+        .Segments(Segments)
+    );
+
+    PWMGenerator #(
+        .Size(Size),
+        .ClockPeriod_ns(ClockPeriod_ns),
+        .PWMPeriod_ns(PWMPeriod_ns),
+        .PWMType(PWMType)
+    ) B3 (
+        .Clock(Clock),
+        .Data(Data),
+        .PWM(PWM),
+        .Synch(Synch)
+    );
 endmodule
