@@ -1,0 +1,631 @@
+
+\documentclass[a4paper,12pt]{article}
+
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[russian]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{float}
+\usepackage{amsmath,amssymb}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{pdflscape}
+\usepackage{hyperref}
+
+\geometry{left=2.2cm,right=2.2cm,top=2cm,bottom=2cm}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0.3em}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    columns=fullflexible,
+    keepspaces=true,
+    frame=single,
+    showstringspaces=false,
+    tabsize=2
+}
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    \includegraphics[width=0.18\textwidth]{images/image1.png}\par\vspace{1em}
+    {\large МОСКОВСКИЙ АВИАЦИОННЫЙ ИНСТИТУТ\par}
+    {\large (НАЦИОНАЛЬНЫЙ ИССЛЕДОВАТЕЛЬСКИЙ УНИВЕРСИТЕТ)\par}
+    \vspace{4em}
+    {\large Лабораторная работа по курсу\par}
+    \vspace{0.8em}
+    {\Large\bfseries «Цифровые устройства приводных систем»\par}
+    \vspace{1.2em}
+    {\Large Описание и моделирование последовательных устройств на языке Verilog HDL\par}
+    \vspace{2em}
+    {\large Вариант № 2\par}
+    \vfill
+    \begin{flushright}
+        Выполнил:\par
+        Студент группы М7О-404С-22\par
+        Анзимиров Кирилл Львович\par
+        \vspace{1em}
+        Проверил:\par
+        Профессор кафедры 702\par
+        Кривилев Александр Владимирович
+    \end{flushright}
+    \vfill
+    {\large Москва, 2026\par}
+\end{titlepage}
+
+\section{Цель и задание}
+
+\textbf{Цель:} знакомство с основными принципами работы последовательностных устройств и интегрированной средой Quartus 2 (Quartus Prime), а также закрепление навыков работы с языком описания и моделирования цифровых устройств Verilog HDL.
+
+\textbf{Задание:} описать работу последовательного устройства (четырехразрядного счётчика) и реализовать его работу с помощью микросхем MAX 2 и Cyclone 4.
+
+\textbf{Вариант № 5:}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.55\textwidth]{images/image2.png}
+\end{figure}
+
+\section{Введение}
+
+Счётчиком называется последовательностное устройство, предназначенное для счёта числа поступающих на его вход импульсов и фиксации этого числа на $N$ выходах в виде $N$-разрядного двоичного кода.
+
+Счётчики работают по циклическому принципу. При поступлении на вход счётчика количества импульсов, равного модулю счёта, счётчик возвращается в исходное состояние. Модуль счёта --- это число уникальных состояний, которые может принимать счётчик.
+
+Счётчики бывают суммирующие, когда с каждым входным импульсом число на счётчике увеличивается, и вычитающие, когда это число уменьшается, а счётчик, который работает как на вычитание, так и на суммирование, называется реверсивным.
+
+\section{Практическая часть}
+
+\subsection{Синтез на основе словарного метода}
+
+Словарь переходов для JK-триггера выглядит следующим образом.
+
+\begin{table}[h!]
+\centering
+
+\begin{minipage}[t]{0.42\textwidth}
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+№ & $K$ & $J$ & $Q^{k-1}$ & $Q^{k}$ \\ \hline
+0 & 0 & 0 & 0 & 0 \\ \hline
+1 & 0 & 0 & 1 & 1 \\ \hline
+2 & 0 & 1 & 0 & 1 \\ \hline
+3 & 0 & 1 & 1 & 1 \\ \hline
+4 & 1 & 0 & 0 & 0 \\ \hline
+5 & 1 & 0 & 1 & 0 \\ \hline
+6 & 1 & 1 & 0 & 1 \\ \hline
+7 & 1 & 1 & 1 & 0 \\ \hline
+\end{tabular}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.42\textwidth}
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|c|c|c|c|}
+\hline
+$Q^{k} \rightarrow Q^{k+1}$ & $F$ & $K$ & $J$ \\ \hline
+$0 \rightarrow 0$ & 0 & $\sim$ & 0 \\ \hline
+$0 \rightarrow 1$ & $\uparrow$ & $\sim$ & 1 \\ \hline
+$1 \rightarrow 0$ & $\downarrow$ & 1 & $\sim$ \\ \hline
+$1 \rightarrow 1$ & 1 & 0 & $\sim$ \\ \hline
+\end{tabular}
+\end{minipage}
+
+\caption{Словарь переходов для JK-триггера}
+\end{table}
+
+\subsection{Четырёхразрядный суммирующий счётчик в коде Грея}
+
+\begin{landscape}
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{longtable}{|c|cccc|cccc|cccc|cccccccc|c|}
+    \hline
+    \multirow{2}{*}{\textbf{i}} &
+    \multicolumn{4}{c|}{\textbf{Текущее состояние}} &
+    \multicolumn{4}{c|}{\textbf{Следующее состояние}} &
+    \multicolumn{4}{c|}{\textbf{Функции переходов}} &
+    \multicolumn{8}{c|}{\textbf{Информационные сигналы}} &
+    \multirow{2}{*}{\textbf{Код}} \\
+    \cline{2-21}
+    & $B_3$ & $B_2$ & $B_1$ & $B_0$
+    & $B_3$ & $B_2$ & $B_1$ & $B_0$
+    & $F_3$ & $F_2$ & $F_1$ & $F_0$
+    & $J_3$ & $K_3$ & $J_2$ & $K_2$ & $J_1$ & $K_1$ & $J_0$ & $K_0$
+    & \\
+    \hline
+        0 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & 1 & 0 & 0 & 0 & $\uparrow$ & 0 & $\sim$ & 0 & $\sim$ & 0 & $\sim$ & 1 & $\sim$ & 0 \\
+        1 & 0 & 0 & 0 & 1 & 0 & 0 & 1 & 1 & 0 & 0 & $\uparrow$ & 1 & 0 & $\sim$ & 0 & $\sim$ & 1 & $\sim$ & $\sim$ & 0 & 1 \\
+        2 & 0 & 0 & 1 & 1 & 0 & 0 & 1 & 0 & 0 & 0 & 1 & $\downarrow$ & 0 & $\sim$ & 0 & $\sim$ & $\sim$ & 0 & $\sim$ & 1 & 3 \\
+        3 & 0 & 0 & 1 & 0 & 0 & 1 & 1 & 0 & 0 & $\uparrow$ & 1 & 0 & 0 & $\sim$ & 1 & $\sim$ & $\sim$ & 0 & 0 & $\sim$ & 2 \\
+        4 & 0 & 1 & 1 & 0 & 0 & 1 & 1 & 1 & 0 & 1 & 1 & $\uparrow$ & 0 & $\sim$ & $\sim$ & 0 & $\sim$ & 0 & 1 & $\sim$ & 6 \\
+        5 & 0 & 1 & 1 & 1 & 0 & 1 & 0 & 1 & 0 & 1 & $\downarrow$ & 1 & 0 & $\sim$ & $\sim$ & 0 & $\sim$ & 1 & $\sim$ & 0 & 7 \\
+        6 & 0 & 1 & 0 & 1 & 0 & 1 & 0 & 0 & 0 & 1 & 0 & $\downarrow$ & 0 & $\sim$ & $\sim$ & 0 & 0 & $\sim$ & $\sim$ & 1 & 5 \\
+        7 & 0 & 1 & 0 & 0 & 1 & 1 & 0 & 0 & $\uparrow$ & 1 & 0 & 0 & 1 & $\sim$ & $\sim$ & 0 & 0 & $\sim$ & 0 & $\sim$ & 4 \\
+        8 & 1 & 1 & 0 & 0 & 1 & 1 & 0 & 1 & 1 & 1 & 0 & $\uparrow$ & $\sim$ & 0 & $\sim$ & 0 & 0 & $\sim$ & 1 & $\sim$ & 12 \\
+        9 & 1 & 1 & 0 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & $\uparrow$ & 1 & $\sim$ & 0 & $\sim$ & 0 & 1 & $\sim$ & $\sim$ & 0 & 13 \\
+        10 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 0 & 1 & 1 & 1 & $\downarrow$ & $\sim$ & 0 & $\sim$ & 0 & $\sim$ & 0 & $\sim$ & 1 & 15 \\
+        11 & 1 & 1 & 1 & 0 & 1 & 0 & 1 & 0 & 1 & $\downarrow$ & 1 & 0 & $\sim$ & 0 & $\sim$ & 1 & $\sim$ & 0 & 0 & $\sim$ & 14 \\
+        12 & 1 & 0 & 1 & 0 & 1 & 0 & 1 & 1 & 1 & 0 & 1 & $\uparrow$ & $\sim$ & 0 & 0 & $\sim$ & $\sim$ & 0 & 1 & $\sim$ & 10 \\
+        13 & 1 & 0 & 1 & 1 & 1 & 0 & 0 & 1 & 1 & 0 & $\downarrow$ & 1 & $\sim$ & 0 & 0 & $\sim$ & $\sim$ & 1 & $\sim$ & 0 & 11 \\
+        14 & 1 & 0 & 0 & 1 & 1 & 0 & 0 & 0 & 1 & 0 & 0 & $\downarrow$ & $\sim$ & 0 & 0 & $\sim$ & 0 & $\sim$ & $\sim$ & 1 & 9 \\
+        15 & 1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 & $\downarrow$ & 0 & 0 & 0 & $\sim$ & 1 & 0 & $\sim$ & 0 & $\sim$ & 0 & $\sim$ & 8 \\
+    \hline
+\end{longtable}
+\end{landscape}
+
+\subsection{Карты Карно для кода Джонсона}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.46\textwidth]{images/image21.png}\par\medskip
+    \includegraphics[width=0.46\textwidth]{images/image22.png}
+\end{figure}
+
+\subsection{Аналитические выражения в базисах Пирса, Шеффера и Жегалкина}
+
+\textbf{Базис Шеффера (И-НЕ):}
+\begin{equation*}
+\text{Формулы в исходном документе представлены в виде изображений/символов и плохо распознаны. При необходимости их лучше вставить как отдельные формулы вручную.}
+\end{equation*}
+
+\textbf{Базис Пирса (ИЛИ-НЕ):}
+\begin{equation*}
+\text{Формулы в исходном документе представлены в виде изображений/символов и плохо распознаны.}
+\end{equation*}
+
+\textbf{Полином Жегалкина:}
+\begin{equation*}
+\text{Формулы в исходном документе представлены в виде изображений/символов и плохо распознаны.}
+\end{equation*}
+
+\subsection{Четырёхразрядный вычитающий счётчик в двоично-арифметическом коде}
+
+\begin{landscape}
+\scriptsize
+\renewcommand{\arraystretch}{1.2}
+\begin{longtable}{|c|cccc|cccc|cccc|cccccccc|}
+    \hline
+    \multirow{2}{*}{\textbf{i}} &
+    \multicolumn{4}{c|}{\textbf{Текущее состояние}} &
+    \multicolumn{4}{c|}{\textbf{Следующее состояние}} &
+    \multicolumn{4}{c|}{\textbf{Функции переходов}} &
+    \multicolumn{8}{c|}{\textbf{Информационные сигналы}} \\
+    \cline{2-21}
+    & $B_3$ & $B_2$ & $B_1$ & $B_0$
+    & $B_3$ & $B_2$ & $B_1$ & $B_0$
+    & $F_3$ & $F_2$ & $F_1$ & $F_0$
+    & $J_3$ & $K_3$ & $J_2$ & $K_2$ & $J_1$ & $K_1$ & $J_0$ & $K_0$ \\
+    \hline
+        15 & 1 & 1 & 1 & 1 & 1 & 1 & 1 & 0 & 1 & 1 & 1 &  & 0 & $\sim$ & 0 & $\sim$ & 0 & $\sim$ & 1 & 0 \\
+        14 & 1 & 1 & 1 & 0 & 1 & 1 & 0 & 1 & 1 & 1 &  &  & 0 & $\sim$ & 0 & $\sim$ & 1 & 0 & 0 & 1 \\
+        13 & 1 & 1 & 0 & 1 & 1 & 1 & 0 & 0 & 1 & 1 & 0 &  & 0 & $\sim$ & 0 & $\sim$ & $\sim$ & 0 & 1 & 0 \\
+        12 & 1 & 1 & 0 & 0 & 1 & 0 & 1 & 1 & 1 &  &  &  & 0 & $\sim$ & 1 & 0 & 0 & 1 & 0 & 1 \\
+        11 & 1 & 0 & 1 & 1 & 1 & 0 & 1 & 0 & 1 & 0 & 1 &  & 0 & $\sim$ & $\sim$ & 0 & 0 & $\sim$ & 1 & 0 \\
+        10 & 1 & 0 & 1 & 0 & 1 & 0 & 0 & 1 & 1 & 0 &  &  & 0 & $\sim$ & $\sim$ & 0 & 1 & 0 & 0 & 1 \\
+        9 & 1 & 0 & 0 & 1 & 1 & 0 & 0 & 0 & 1 & 0 & 0 &  & 0 & $\sim$ & $\sim$ & 0 & $\sim$ & 0 & 1 & 0 \\
+        8 & 1 & 0 & 0 & 0 & 0 & 1 & 1 & 1 &  &  &  &  & 1 & 0 & 0 & 1 & 0 & 1 & 0 & 1 \\
+        7 & 0 & 1 & 1 & 1 & 0 & 1 & 1 & 0 & 0 & 1 & 1 &  & $\sim$ & 0 & 0 & $\sim$ & 0 & $\sim$ & 1 & 0 \\
+        6 & 0 & 1 & 1 & 0 & 0 & 1 & 0 & 1 & 0 & 1 &  &  & $\sim$ & 0 & 0 & $\sim$ & 1 & 0 & 0 & 1 \\
+        5 & 0 & 1 & 0 & 1 & 0 & 1 & 0 & 0 & 0 & 1 & 0 &  & $\sim$ & 0 & 0 & $\sim$ & $\sim$ & 0 & 1 & 0 \\
+        4 & 0 & 1 & 0 & 0 & 0 & 0 & 1 & 1 & 0 &  &  &  & $\sim$ & 0 & 1 & 0 & 0 & 1 & 0 & 1 \\
+        3 & 0 & 0 & 1 & 1 & 0 & 0 & 1 & 0 & 0 & 0 & 1 &  & $\sim$ & 0 & $\sim$ & 0 & 0 & $\sim$ & 1 & 0 \\
+        2 & 0 & 0 & 1 & 0 & 0 & 0 & 0 & 1 & 0 & 0 &  &  & $\sim$ & 0 & $\sim$ & 0 & 1 & 0 & 0 & 1 \\
+        1 & 0 & 0 & 0 & 1 & 0 & 0 & 0 & 0 & 0 & 0 & 0 &  & $\sim$ & 0 & $\sim$ & 0 & $\sim$ & 0 & 1 & 0 \\
+        0 & 0 & 0 & 0 & 0 & 1 & 1 & 1 & 1 &  &  &  &  & 0 & 1 & 0 & 1 & 0 & 1 & 0 & 1 \\
+    \hline
+\end{longtable}
+\end{landscape}
+
+\subsection{Карты Карно для двоично-арифметического кода}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.46\textwidth]{images/image23.png}\par\medskip
+    \includegraphics[width=0.46\textwidth]{images/image24.png}
+\end{figure}
+
+\subsection{Общая таблица истинности и карты Карно}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.46\textwidth]{images/image25.png}\par\medskip
+    \includegraphics[width=0.46\textwidth]{images/image26.png}
+\end{figure}
+
+\subsection{Описание работы устройства на языке Verilog HDL}
+
+Параметр задаёт направление счёта.
+
+\subsubsection{Структурное описание}
+
+\begin{lstlisting}[language=Verilog]
+module rsff (q,clock,r,s);
+
+input clock, r, s;
+output reg q = 0;
+
+always @(posedge clock)
+if (r && s) q <= 1'bx;
+else if (s) q <= 1'b1;
+else if (r) q <= 1'b0;
+endmodule
+
+module lab521 #(parameter mode="sub")
+(output [4:0] b, input clock);
+
+wire [4:0] r, s, q;
+genvar i;
+
+generate
+if (mode=="add") begin // Johnson
+for (i = 0; i < 4; i = i + 1) rsff rsffi (q[i],clock,r[i],s[i]);
+assign r[3] = ~q[2],
+       s[3] = q[2],
+       r[2] = ~q[1],
+       s[2] = q[1],
+       r[1] = ~q[0],
+       s[1] = q[0],
+       r[0] = q[3],
+       s[0] = ~q[3];
+end
+
+else if (mode=="sub") begin // binary-arithmetic
+for (i = 0; i < 4; i = i + 1) rsff rsffi (q[i],clock,r[i],s[i]);
+assign r[3] = q[3] & ~q[2] & ~q[1] & ~q[0],
+       s[3] = ~q[3] & ~q[2] & ~q[1] & ~q[0],
+       r[2] = q[2] & ~q[1] & ~q[0],
+       s[2] = ~q[2] & ~q[1] & ~q[0],
+       r[1] = q[1] & ~q[0],
+       s[1] = ~q[1] & ~q[0],
+       r[0] = q[0],
+       s[0] = ~q[0];
+end
+
+else if (mode=="reverse") begin // reverse
+for (i = 0; i < 5; i = i + 1) rsff rsffi (q[i],clock,r[i],s[i]);
+// q[4] == dir
+assign r[4] = ~q[3] & ~q[2] & ~q[1] & ~q[0],
+       s[4] = q[3] & ~q[2],
+       r[3] = q[4] & ~q[2] & ~q[1] & ~q[0],
+       s[3] = ~q[4] & q[2],
+       r[2] = q[2] & ~q[1] & ~q[0],
+       s[2] = (~q[4] & q[1]) | (q[3] & ~q[2] & ~q[1] & ~q[0]),
+       r[1] = q[1] & ~q[0],
+       s[1] = (~q[4] & q[0]) | (q[4] & q[2] & ~q[1] & ~q[0]) |
+              (q[3] & ~q[2] & ~q[1] & ~q[0]),
+       r[0] = (q[4] & q[0]) | (q[3] & q[0]),
+       s[0] = (~q[4] & ~q[2]) | (q[4] & q[2] & ~q[0]) |
+              (q[4] & ~q[3] & ~q[2] & q[1] & ~q[0]) |
+              (q[4] & q[3] & ~q[0] & ~q[2]);
+end
+endgenerate
+
+assign b = q;
+
+endmodule
+\end{lstlisting}
+
+\subsubsection{Поведенческое описание на языке Verilog HDL}
+
+\paragraph{В коде Джонсона}
+\begin{lstlisting}[language=Verilog]
+module rsfF (q,clock,r,s);
+input clock, r, s;
+output reg q = 0;
+always @(posedge clock)
+if (r && s) q <= 1'bx;
+else if (s) q <= 1'b1;
+else if (r) q <= 1'b0;
+endmodule
+
+module zad52
+(output [3:0] b,
+input clk);
+wire [3:0] r, s;
+genvar i;
+generate
+for (i=0; i<4; i=i+1) begin: registers
+  rsfF rsfFi (.q(b[i]), .r(r[i]), .s(s[i]), .clock(clk));
+end
+reg [7:0] temp;
+always @*
+case (b)
+  0  : temp='b???00001;
+  1  : temp='b??00001?;
+  3  : temp='b?00001??;
+  7  : temp='b00001???;
+  15 : temp='b0001???0;
+  14 : temp='b001???00;
+  12 : temp='b01???000;
+  8  : temp='b1???0000;
+endcase
+assign {r,s} = temp;
+endgenerate
+endmodule
+\end{lstlisting}
+
+\paragraph{Двоично-арифметический код}
+\begin{lstlisting}[language=Verilog]
+module rsfF (q,clock,r,s);
+input clock, r, s;
+output reg q = 0;
+
+always @(posedge clock)
+if (r && s) q <= 1'bx;
+else if (s) q <= 1'b1;
+else if (r) q <= 1'b0;
+endmodule
+
+module lab5d
+(output [3:0] b,
+input clk);
+wire [3:0] r, s;
+genvar i;
+generate
+for (i=0; i<4; i=i+1) begin: registers
+  rsfF rsfFi (.q(b[i]), .r(r[i]), .s(s[i]), .clock(clk));
+end
+reg [7:0] temp;
+always @*
+case (b)
+  15 : temp='b0001???0;
+  14 : temp='b0010??01;
+  13 : temp='b00?1??00;
+  12 : temp='b0100?011;
+  11 : temp='b0?01?0?0;
+  10 : temp='b0?10?001;
+  9  : temp='b0??1?000;
+  8  : temp='b10000111;
+  7  : temp='b?0010??0;
+  6  : temp='b?0100?01;
+  5  : temp='b?0?10?00;
+  4  : temp='b?1000011;
+  3  : temp='b??0100?0;
+  2  : temp='b??100001;
+  1  : temp='b???10000;
+  0  : temp='b00001111;
+endcase
+assign {r,s} = temp;
+endgenerate
+endmodule
+\end{lstlisting}
+
+\paragraph{Реверс}
+\begin{lstlisting}[language=Verilog]
+module rsfF (q,clock,r,s);
+input clock, r, s;
+output reg q = 0;
+always @(posedge clock)
+if (r && s) q <= 1'bx;
+else if (s) q <= 1'b1;
+else if (r) q <= 1'b0;
+endmodule
+
+module lab5
+(output [4:0] b,
+input clk);
+wire [4:0] r, s;
+genvar i;
+generate
+for (i=0; i<5; i=i+1) begin: registers
+  rsfF rsfFi (.q(b[i]), .r(r[i]), .s(s[i]), .clock(clk));
+end
+reg [9:0] temp;
+always @*
+case (b)
+  0  : temp='b????000001;
+  1  : temp='b???000001?;
+  3  : temp='b??000001??;
+  7  : temp='b?000001???;
+  15 : temp='b?00010???0;
+  14 : temp='b?001?0??00;
+  12 : temp='b?01??0?000;
+  8  : temp='b000001?111;
+  31 : temp='b00001????0;
+  30 : temp='b00010???01;
+  29 : temp='b000?1???00;
+  28 : temp='b00100??011;
+  27 : temp='b00?01??0?0;
+  26 : temp='b00?10??001;
+  25 : temp='b00??1??000;
+  24 : temp='b01000?0111;
+  23 : temp='b0?001?0??0;
+  22 : temp='b0?010?0?01;
+  21 : temp='b0?0?1?0?00;
+  20 : temp='b0?100?0011;
+  19 : temp='b0??01?00?0;
+  18 : temp='b0??10?0001;
+  17 : temp='b0???1?0000;
+  16 : temp='b1????00000;
+endcase
+assign {r,s} = temp;
+endgenerate
+endmodule
+\end{lstlisting}
+
+\subsection{Моделирование работы устройства}
+
+\subsubsection{Испытательный стенд для структурного описания}
+
+\begin{lstlisting}[language=Verilog]
+`include "lab521.v"
+`define TD 10
+`timescale 1ns/1ns
+
+module lab521_tb();
+
+reg clock=0;
+wire [4:0] b;
+
+//wire [3:0] c;
+//wire [3:0] d;
+
+lab521 #(.mode("sub")) counter1 (.b(b), .clock(clock));
+//lab521 #(.mode("add")) counter2 (.b(b), .clock(clock));
+//lab521 #(.mode("revers")) counter3 (.b(b), .clock(clock));
+
+initial
+repeat (64) #`TD clock=~clock;
+
+endmodule
+\end{lstlisting}
+
+\paragraph{Результаты моделирования для суммирования в коде Джонсона (структ.опис.)}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/image27.png}
+\end{figure}
+
+\paragraph{Результаты моделирования для вычитания в двоично-арифметическом коде (структ.опис.)}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/image28.png}
+\end{figure}
+
+\paragraph{Результаты моделирования для реверса (структ.опис.)}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/image29.png}
+\end{figure}
+
+\subsubsection{Испытательный стенд для поведенческого описания}
+
+\begin{lstlisting}[language=Verilog]
+`include "zad52.v" // `include "lab5d.v" // `include "lab5.v"
+`define TD 10
+`timescale 1ns/1ns
+
+module lab52_tb(); // module lab5d_tb(); // module lab5_tb();
+
+reg clock=0;
+wire [4:0] b;
+
+lab5d #(.mode("sub")) counter1 (.b(b), .clock(clock));
+
+//zad52 #(.mode("add")) counter2 (.b(b), .clock(clock));
+//lab5 #(.mode("revers")) counter3 (.b(b), .clock(clock));
+
+initial repeat (64) #`TD clock=~clock
+
+endmodule
+\end{lstlisting}
+
+\paragraph{Результаты моделирования для суммирования в коде Джонсона (пов.опис.)}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/image30.png}
+\end{figure}
+
+\paragraph{Результаты моделирования для вычитания в двоично-арифметическом коде (пов.опис.)}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/image31.png}
+\end{figure}
+
+\paragraph{Результаты моделирования для реверса (пов.опис.)}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/image32.png}
+\end{figure}
+
+\subsection{Синтез устройства в Quartus Prime}
+
+Синтез устройства проводится с использованием микросхемы MAXII EPM240T100C5.
+
+Для выполнения синтеза в Quartus Prime было использовано поведенческое описание для реверса, взятое выше, и файл делителя частоты.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.8\textwidth]{images/image33.png}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/image34.png}
+\end{figure}
+
+\paragraph{Рабочее окно Programmer}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{images/image35.png}
+\end{figure}
+
+\begin{table}[H]
+    \centering
+    \renewcommand{\arraystretch}{1.2}
+    \begin{tabular}{|l|c|c|c|}
+        \hline
+        \textbf{Микросхема} & \textbf{Общее число логических элементов} & \textbf{Занято} & \textbf{Общ. \% занятых} \\
+        \hline
+        EPM240T100C5 & 240 & 5 & 23\% \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\subsection{Экспериментальные исследования (снимки состояний счётчиков)}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.23\textwidth]{images/image36.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image37.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image38.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image39.jpeg}
+
+    \medskip
+    \includegraphics[width=0.23\textwidth]{images/image40.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image41.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image42.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image43.jpeg}
+
+    \medskip
+    \includegraphics[width=0.23\textwidth]{images/image44.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image45.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image46.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image47.jpeg}
+
+    \medskip
+    \includegraphics[width=0.23\textwidth]{images/image48.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image49.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image50.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image51.jpeg}
+
+    \medskip
+    \includegraphics[width=0.23\textwidth]{images/image52.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image53.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image54.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image55.jpeg}
+
+    \medskip
+    \includegraphics[width=0.23\textwidth]{images/image56.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image57.jpeg}
+    \includegraphics[width=0.23\textwidth]{images/image58.jpeg}
+\end{figure}
+
+\section*{Заключение}
+
+В данной курсовой работе я разработала и реализовала в ПЛИС комбинационное устройство --- мажоритарную схему с 5-ю входами --- написала для неё структурное и поведенческое описание на языке Verilog HDL в Modelsim, испытательные стенды, получила временные диаграммы, характеризующие работу устройства, а также провела синтез в Quartus Prime на микросхеме компании Altera Cyclone IV EP4CE6F17C8 и привела результаты экспериментальных исследований, приложив снимки состояний индикаторов и осциллографов.
+
+Для последовательностного устройства удалось также написать структурное и поведенческое описание на языке Verilog HDL в Modelsim, испытательные стенды, получить временные диаграммы, характеризующие работу устройства для каждого состояния счётчика (суммирование --- по коду Джонсона, вычитание --- по ДАК и реверс --- счёт в обоих направлениях), а также провести синтез в Quartus Prime на микросхеме MAXII EPM240T100C5, но только со счётчиками, без индикаторов, приложила снимки их состояний.
+
+Реализация в ПЛИС для последовательностного устройства далась мне труднее, т.к. индикаторы не выводились и пришлось пользоваться только счётчиками.
+
+\section*{Список использованных источников}
+
+\begin{enumerate}
+    \item \url{https://programforyou.ru/calculators/postroenie-tablitci-istinnosti-sknf-sdnf}
+    \item \url{https://www.dcode.fr/boolean-expressions-calculator}
+    \item Учебные презентации по АДМУ («Язык Verilog (Часть II)», «Язык Verilog (Часть III)», «Счётчики», «Триггеры», «Пороговые устройства»).
+\end{enumerate}
+
+\end{document}
