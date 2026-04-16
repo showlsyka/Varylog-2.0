@@ -79,11 +79,11 @@ module PulseGenerator #(
     localparam integer MaxPause    = PauseInterval_ns   / ClockPeriod_ns;
     localparam integer MaxRepeats  = RepeatsInterval_ns / ClockPeriod_ns;
     localparam integer MaxInterval = (MaxPause > MaxRepeats) ? MaxPause : MaxRepeats;
-    localparam integer Size        = $clog2(MaxInterval + 1);
+    localparam integer SizeCnt     = $clog2(MaxInterval + 1);
 
     typedef enum logic [1:0] {Idle, Pause, Repeats} state_t;
 
-    logic [Size-1:0] Counter = 0;
+    logic [SizeCnt-1:0] Counter = 0;
     logic Pulse = 0;
     logic Pressed;
     state_t State = Idle;
@@ -99,8 +99,9 @@ module PulseGenerator #(
         if (Pressed) begin
             case (State)
                 Idle: begin
-                    State <= Pause;
-                    Pulse <= 1'b1;
+                    State   <= Pause;
+                    Counter <= 0;
+                    Pulse   <= 1'b1;
                 end
 
                 Pause: begin
@@ -139,7 +140,7 @@ endmodule
 
 module DataCounter #(
     parameter Size = 5,
-    parameter Signed = 1   // 0 = No, 1 = Yes
+    parameter Signed = 1
 )(
     input  logic Clock,
     input  logic Up,
@@ -182,32 +183,26 @@ module DataCounter #(
                 if (Data != 0)
                     Data[Size-1] <= ~Data[Size-1];
             end
-
             else if (Up) begin
                 if (sign_bit == 1'b0) begin
-                    // +0 -> +1 -> ... -> +MAX
                     if (magnitude < MAX_SIGNED)
                         Data <= {1'b0, magnitude + 1'b1};
                 end
                 else begin
-                    // -MAX ... -2 -> -1 -> 0
                     if (magnitude > 1)
                         Data <= {1'b1, magnitude - 1'b1};
                     else if (magnitude == 1)
                         Data <= '0;
                 end
             end
-
             else if (Down) begin
                 if (sign_bit == 1'b0) begin
-                    // +MAX ... +1 -> 0 -> -1
                     if (magnitude > 0)
                         Data <= {1'b0, magnitude - 1'b1};
                     else
-                        Data <= {1'b1, {{(Size-2){1'b0}}, 1'b1}}; // 0 -> -1
+                        Data <= {1'b1, {{(Size-2){1'b0}}, 1'b1}};
                 end
                 else begin
-                    // -1 -> -2 -> ... -> -MAX
                     if (magnitude < MAX_SIGNED)
                         Data <= {1'b1, magnitude + 1'b1};
                 end
@@ -294,13 +289,17 @@ module Data2Segments #(
 );
     function automatic integer clog10_func(input integer n);
         integer t;
+        integer nn;
         begin
-            if (n < 1) clog10_func = 1;
+            if (n < 1) begin
+                clog10_func = 1;
+            end
             else begin
-                t = 0;
-                while (n > 0) begin
-                    t = t + 1;
-                    n = n / 10;
+                t  = 0;
+                nn = n;
+                while (nn > 0) begin
+                    t  = t + 1;
+                    nn = nn / 10;
                 end
                 clog10_func = t;
             end
@@ -329,25 +328,25 @@ module Data2Segments #(
     function automatic [7:0] BCD2ESC_func(input [3:0] x);
         begin
             case (x)
-                4'd0  : BCD2ESC_func = 8'b1100_0000;
-                4'd1  : BCD2ESC_func = 8'b1111_1001;
-                4'd2  : BCD2ESC_func = 8'b1010_0100;
-                4'd3  : BCD2ESC_func = 8'b1011_0000;
-                4'd4  : BCD2ESC_func = 8'b1001_1001;
-                4'd5  : BCD2ESC_func = 8'b1001_0010;
-                4'd6  : BCD2ESC_func = 8'b1000_0010;
-                4'd7  : BCD2ESC_func = 8'b1111_1000;
-                4'd8  : BCD2ESC_func = 8'b1000_0000;
-                4'd9  : BCD2ESC_func = 8'b1001_0000;
-                4'ha  : BCD2ESC_func = 8'b1011_1111; // minus
-                default: BCD2ESC_func = 8'b1111_1111; // empty
+                4'd0   : BCD2ESC_func = 8'b1100_0000;
+                4'd1   : BCD2ESC_func = 8'b1111_1001;
+                4'd2   : BCD2ESC_func = 8'b1010_0100;
+                4'd3   : BCD2ESC_func = 8'b1011_0000;
+                4'd4   : BCD2ESC_func = 8'b1001_1001;
+                4'd5   : BCD2ESC_func = 8'b1001_0010;
+                4'd6   : BCD2ESC_func = 8'b1000_0010;
+                4'd7   : BCD2ESC_func = 8'b1111_1000;
+                4'd8   : BCD2ESC_func = 8'b1000_0000;
+                4'd9   : BCD2ESC_func = 8'b1001_0000;
+                4'ha   : BCD2ESC_func = 8'b1011_1111;
+                default: BCD2ESC_func = 8'b1111_1111;
             endcase
         end
     endfunction
 
     localparam integer ISize        = (Signed == 0) ? clog10_func(1<<Size)
                                                     : (clog10_func(1<<(Size-1)) + 1);
-    localparam integer BCDSize      = 4*ISize;
+    localparam integer BCDSize      = 4 * ISize;
     localparam integer Prescale     = RefreshTime_ns / ClockPeriod_ns / ISize;
     localparam integer ICounterSize = (ISize > 1) ? $clog2(ISize) : 1;
 
@@ -397,24 +396,23 @@ endmodule
 
 
 
-
-module PWMGenerator (
-    Clock, Data, PWM, Synch
-);
+module PWMGenerator #(
     parameter ClockPeriod_ns = 20,
-              PWMPeriod_ns   = 200_000,
-              PWMType        = "Centered",
-              Size           = 5;
-
-    input  bit Clock;
-    input  logic [Size-1:0] Data;
-    output logic PWM = 0, Synch = 0;
-
+    parameter PWMPeriod_ns   = 200_000,
+    parameter PWMType        = "Centered",
+    parameter Size           = 5
+)(
+    input  logic Clock,
+    input  logic [Size-1:0] Data,
+    output logic PWM = 0,
+    output logic Synch = 0
+);
     localparam integer k1        = (PWMType == "Centered") ? 2 : 1;
-    localparam integer Max       = 2**Size - 2;
+    localparam integer Max       = 2**Size - 1;   // 31 for Size=5
     localparam integer Prescaler = PWMPeriod_ns / ClockPeriod_ns / (Max + 1) / k1;
 
-    logic Enable, EndOfPeriod;
+    logic Enable;
+    logic EndOfPeriod;
     logic [Size-1:0] LoadedData = 0;
     logic [Size-1:0] Counter = 0;
 
@@ -422,70 +420,95 @@ module PWMGenerator (
         if (Prescaler > 1)
             SelectNPulse #(.N(Prescaler)) S1 (.Clock(Clock), .Pulse(Enable));
         else
-            always_comb Enable = 1;
+            assign Enable = 1'b1;
     endgenerate
 
-    always_ff @(posedge Clock)
+    always_ff @(posedge Clock) begin
         if (Enable && EndOfPeriod)
             LoadedData <= Data;
+    end
 
-    always_ff @(posedge Clock)
-        if (Enable)
-            PWM <= (LoadedData > Counter);
+    // Точное поведение:
+    // 0   -> 0%
+    // 16  -> 50%
+    // 31  -> 100%
+    always_ff @(posedge Clock) begin
+        if (Enable) begin
+            if (LoadedData == Max)
+                PWM <= 1'b1;
+            else
+                PWM <= (Counter < LoadedData);
+        end
+    end
 
     generate
         if (PWMType == "Front") begin : summative_counter
-            always_comb EndOfPeriod = (Counter == Max);
+            always_comb begin
+                EndOfPeriod = (Counter == Max);
+            end
 
-            always_ff @(posedge Clock)
-                if (Enable)
+            always_ff @(posedge Clock) begin
+                if (Enable) begin
                     if (EndOfPeriod)
                         Counter <= 0;
                     else
                         Counter <= Counter + 1'b1;
+                end
+            end
 
-            always_ff @(posedge Clock)
-                if (Enable)
+            always_ff @(posedge Clock) begin
+                if (Enable) begin
                     if ((LoadedData > 0) && (Counter == 0))
                         Synch <= ~Synch;
+                end
+            end
         end
-
         else if (PWMType == "Back") begin : subtractive_counter
-            always_comb EndOfPeriod = (Counter == 0);
+            always_comb begin
+                EndOfPeriod = (Counter == 0);
+            end
 
-            always_ff @(posedge Clock)
-                if (Enable)
+            always_ff @(posedge Clock) begin
+                if (Enable) begin
                     if (EndOfPeriod)
                         Counter <= Max;
                     else
                         Counter <= Counter - 1'b1;
+                end
+            end
 
-            always_ff @(posedge Clock)
-                if (Enable)
+            always_ff @(posedge Clock) begin
+                if (Enable) begin
                     if ((LoadedData > 0) && (Counter == Max))
                         Synch <= ~Synch;
+                end
+            end
         end
-
         else if (PWMType == "Centered") begin : reversed_counter
             logic Direction = 0;
 
-            always_comb
+            always_comb begin
                 EndOfPeriod = (~Direction && Counter == Max) ||
                               ( Direction && Counter == 0);
+            end
 
-            always_ff @(posedge Clock)
-                if (Enable)
+            always_ff @(posedge Clock) begin
+                if (Enable) begin
                     if (EndOfPeriod)
                         Direction <= ~Direction;
                     else if (!Direction)
                         Counter <= Counter + 1'b1;
                     else
                         Counter <= Counter - 1'b1;
+                end
+            end
 
-            always_ff @(posedge Clock)
-                if (Enable)
+            always_ff @(posedge Clock) begin
+                if (Enable) begin
                     if ((LoadedData > 0) && (~Direction && Counter == 0))
                         Synch <= ~Synch;
+                end
+            end
         end
     endgenerate
 endmodule
@@ -500,8 +523,8 @@ module DGandD2SandPWM #(
     parameter PauseInterval_ns   = 450_000_000,
     parameter RepeatsInterval_ns = 150_000_000,
     parameter RefreshTime_ns     = 200_000,
-	 parameter PWMPeriod_ns       = 200_000,  // 5 kHz
-    parameter PWMType            = "Back"     
+    parameter PWMPeriod_ns       = 200_000,
+    parameter PWMType            = "Centered"
 )(
     input  logic Clock,
     input  logic Button_Up,
@@ -509,27 +532,33 @@ module DGandD2SandPWM #(
     input  logic Button_Down,
     input  logic Button_Reverse,
     output logic [((Signed==0)?clog10_func_top(1<<Size):(clog10_func_top(1<<(Size-1))+1))-1:0] Indicators,
-    output logic [7:0] Segments
+    output logic [7:0] Segments,
+    output logic PWM,
+    output logic Synch
 );
 
     function automatic integer clog10_func_top(input integer n);
         integer t;
+        integer nn;
         begin
             if (n < 1)
                 clog10_func_top = 1;
             else begin
-                t = 0;
-                while (n > 0) begin
-                    t = t + 1;
-                    n = n / 10;
+                t  = 0;
+                nn = n;
+                while (nn > 0) begin
+                    t  = t + 1;
+                    nn = nn / 10;
                 end
                 clog10_func_top = t;
             end
         end
     endfunction
 
-    localparam integer ISize = clog10_func_top(1<<Size);
-	 logic [Size-1:0] Data;
+    logic [Size-1:0] Data;
+    logic [Size-1:0] PWMData;
+    localparam integer MID = 2**(Size-1);     // 16 for Size=5
+    localparam integer MAGMAX = 2**(Size-1)-1; // 15 for Size=5
 
     DataGenerator #(
         .Size(Size),
@@ -559,6 +588,28 @@ module DGandD2SandPWM #(
         .Segments(Segments)
     );
 
+    // sign-magnitude -> PWM code
+    // Size=5:
+    // -15 -> 0
+    //  0  -> 16
+    // +15 -> 31
+    always_comb begin
+        if (Signed) begin
+            if (Data[Size-1]) begin
+                if (Data[Size-2:0] == MAGMAX)
+                    PWMData = 0;
+                else
+                    PWMData = MID - Data[Size-2:0];
+            end
+            else begin
+                PWMData = MID + Data[Size-2:0];
+            end
+        end
+        else begin
+            PWMData = Data;
+        end
+    end
+
     PWMGenerator #(
         .Size(Size),
         .ClockPeriod_ns(ClockPeriod_ns),
@@ -566,7 +617,7 @@ module DGandD2SandPWM #(
         .PWMType(PWMType)
     ) B3 (
         .Clock(Clock),
-        .Data(Data),
+        .Data(PWMData),
         .PWM(PWM),
         .Synch(Synch)
     );
