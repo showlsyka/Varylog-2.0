@@ -196,3 +196,34 @@ generate
 endgenerate
 
 endmodule
+
+`include "Detector_1110.sv"
+
+`timescale 1ns/1ns
+
+module Detector1110_param_tb ();
+
+    reg Clock = 0;
+    reg x = 0;
+
+    wire y_moore;
+    wire y_mealy;
+
+    // TRIG_TYPE = 0, FSM_TYPE = 0
+    // D-триггеры, автомат Мура
+    Detector1110_param #(0, 0) mut_moore (Clock, x, y_moore);
+
+    // TRIG_TYPE = 0, FSM_TYPE = 1
+    // D-триггеры, автомат Мили
+    Detector1110_param #(0, 1) mut_mealy (Clock, x, y_mealy);
+
+    initial repeat (80) #5 Clock = ~Clock;
+
+    initial begin: testbench
+        integer i;
+        $urandom(5);
+        for(i = 0; i < 30; i = i + 1)
+            #12 x = $urandom_range(1,0);
+    end
+
+endmodule
