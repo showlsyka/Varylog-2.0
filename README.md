@@ -14,7 +14,7 @@
 
 <img width="1295" height="385" alt="image" src="https://github.com/user-attachments/assets/128a1244-f9a8-4ee8-8d68-8bfa09534b8c" />
 
-МУР
+МУР и МИЛИ
 
 <img width="1254" height="316" alt="image" src="https://github.com/user-attachments/assets/cc345da8-6709-40e3-b031-4ac6e8c45fae" />
 
