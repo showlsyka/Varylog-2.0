@@ -224,10 +224,6 @@ module counter_top (
     wire clock_ind_en;
     wire [3:0] c;
 
-    // если кнопка на плате активная LOW, раскомментируй это:
-    // wire dir = ~dir_button;
-
-    // если кнопка активная HIGH:
     wire dir = dir_button;
 
     freq_divider #(.NUMBER(25_000_000)) fd_step1 (
