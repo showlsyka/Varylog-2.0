@@ -281,6 +281,10 @@ endmodule: Detector1110_Mealy
 /* ========================================================= */
 
 module Display1110
+#(
+    parameter ClockPeriod_ns = 20,
+    parameter RefreshTime_ns = 200_000
+)
 (
     input  logic Clock,
     input  logic Reset,
@@ -291,9 +295,6 @@ module Display1110
     output logic [7:0] Indicators,
     output logic [7:0] Segments
 );
-
-parameter ClockPeriod_ns = 20,
-          RefreshTime_ns = 200_000;
 
 logic [2:0] ICounter = 0;
 logic [3:0] LastBits = 4'b0000;
@@ -336,7 +337,7 @@ always_ff @(posedge Clock, negedge Reset)
     Indicators[3] : предыдущий входной бит
 
     Indicators[4] : выход детектора Y
-    Indicators[5] : текущее состояние автомата числом
+    Indicators[5] : состояние автомата буквой A, b, C, d, E
 
     Indicators[6] : пусто
     Indicators[7] : пусто
@@ -347,10 +348,31 @@ always_comb begin: digit_select
         3'd1: Digit = {3'b000, LastBits[1]};
         3'd2: Digit = {3'b000, LastBits[2]};
         3'd3: Digit = {3'b000, LastBits[3]};
+
         3'd4: Digit = {3'b000, Y};
-        3'd5: Digit = StateCode;
+
+        /*
+            StateCode:
+            0 -> A
+            1 -> b
+            2 -> C
+            3 -> d
+            4 -> E
+        */
+        3'd5: begin
+            case (StateCode)
+                4'd0: Digit = 4'd10; // A
+                4'd1: Digit = 4'd11; // b
+                4'd2: Digit = 4'd12; // C
+                4'd3: Digit = 4'd13; // d
+                4'd4: Digit = 4'd14; // E
+                default: Digit = 4'd15;
+            endcase
+        end
+
         3'd6: Digit = 4'd15;
         3'd7: Digit = 4'd15;
+
         default: Digit = 4'd15;
     endcase
 end: digit_select
@@ -361,25 +383,31 @@ always_comb begin: outputs
     Segments   = BCD2ESC(Digit);
 end: outputs
 
-/* Декодер цифр для активного нуля */
+/* Декодер цифр и букв для активного нуля */
 function automatic [7:0] BCD2ESC (input logic [3:0] x);
     unique case (x)
-        4'd0:    BCD2ESC = 8'b1100_0000;
-        4'd1:    BCD2ESC = 8'b1111_1001;
-        4'd2:    BCD2ESC = 8'b1010_0100;
-        4'd3:    BCD2ESC = 8'b1011_0000;
-        4'd4:    BCD2ESC = 8'b1001_1001;
-        4'd5:    BCD2ESC = 8'b1001_0010;
-        4'd6:    BCD2ESC = 8'b1000_0010;
-        4'd7:    BCD2ESC = 8'b1111_1000;
-        4'd8:    BCD2ESC = 8'b1000_0000;
-        4'd9:    BCD2ESC = 8'b1001_0000;
-        default: BCD2ESC = 8'b1111_1111;
+        4'd0:    BCD2ESC = 8'b1100_0000; // 0
+        4'd1:    BCD2ESC = 8'b1111_1001; // 1
+        4'd2:    BCD2ESC = 8'b1010_0100; // 2
+        4'd3:    BCD2ESC = 8'b1011_0000; // 3
+        4'd4:    BCD2ESC = 8'b1001_1001; // 4
+        4'd5:    BCD2ESC = 8'b1001_0010; // 5
+        4'd6:    BCD2ESC = 8'b1000_0010; // 6
+        4'd7:    BCD2ESC = 8'b1111_1000; // 7
+        4'd8:    BCD2ESC = 8'b1000_0000; // 8
+        4'd9:    BCD2ESC = 8'b1001_0000; // 9
+
+        4'd10:   BCD2ESC = 8'b1000_1000; // A
+        4'd11:   BCD2ESC = 8'b1000_0011; // b
+        4'd12:   BCD2ESC = 8'b1100_0110; // C
+        4'd13:   BCD2ESC = 8'b1010_0001; // d
+        4'd14:   BCD2ESC = 8'b1000_0110; // E
+
+        default: BCD2ESC = 8'b1111_1111; // пусто
     endcase
 endfunction: BCD2ESC
 
 endmodule: Display1110
-
 
 /* ========================================================= */
 /* Делитель частоты / формирователь одного импульса           */
