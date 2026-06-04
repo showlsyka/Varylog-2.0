@@ -20,6 +20,7 @@
 
 Светофор
 
-<img width="1262" height="456" alt="image" src="https://github.com/user-attachments/assets/72ef3319-31d4-4971-a58c-5f43cdb671be" />
+<img width="1318" height="539" alt="image" src="https://github.com/user-attachments/assets/b4eccf60-f648-4ef7-b001-ed18971ed9fc" />
+
 
 
