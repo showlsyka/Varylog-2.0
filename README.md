@@ -18,5 +18,8 @@
 
 <img width="1254" height="316" alt="image" src="https://github.com/user-attachments/assets/cc345da8-6709-40e3-b031-4ac6e8c45fae" />
 
+Светофор
+
+<img width="1262" height="456" alt="image" src="https://github.com/user-attachments/assets/72ef3319-31d4-4971-a58c-5f43cdb671be" />
 
 
