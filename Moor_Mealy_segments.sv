@@ -328,20 +328,6 @@ always_ff @(posedge Clock, negedge Reset)
     else if (Enable)
         LastBits <= {LastBits[2:0], S};
 
-/*
-    Раскладка по индикаторам:
-
-    Indicators[0] : последний входной бит
-    Indicators[1] : предыдущий входной бит
-    Indicators[2] : предыдущий входной бит
-    Indicators[3] : предыдущий входной бит
-
-    Indicators[4] : выход детектора Y
-    Indicators[5] : состояние автомата буквой A, b, C, d, E
-
-    Indicators[6] : пусто
-    Indicators[7] : пусто
-*/
 always_comb begin: digit_select
     case (ICounter)
         3'd0: Digit = {3'b000, LastBits[0]};
@@ -351,14 +337,6 @@ always_comb begin: digit_select
 
         3'd4: Digit = {3'b000, Y};
 
-        /*
-            StateCode:
-            0 -> A
-            1 -> b
-            2 -> C
-            3 -> d
-            4 -> E
-        */
         3'd5: begin
             case (StateCode)
                 4'd0: Digit = 4'd10; // A
@@ -408,10 +386,6 @@ function automatic [7:0] BCD2ESC (input logic [3:0] x);
 endfunction: BCD2ESC
 
 endmodule: Display1110
-
-/* ========================================================= */
-/* Делитель частоты / формирователь одного импульса           */
-/* ========================================================= */
 
 module SelNPulse
 #(
