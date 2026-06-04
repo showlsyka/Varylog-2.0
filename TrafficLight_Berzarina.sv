@@ -5,12 +5,12 @@ module TrafficLight_Berzarina
     parameter ClockPeriod_ns  = 20,
     parameter RefreshTime_ns  = 200_000,
 
-    parameter TIME_A = 15,
-    parameter TIME_B = 3,
-    parameter TIME_C = 15,
-    parameter TIME_D = 3,
-    parameter TIME_E = 10,
-    parameter TIME_F = 2
+		parameter TIME_A = 52,
+		parameter TIME_B = 3,
+		parameter TIME_C = 25,
+		parameter TIME_D = 3,
+		parameter TIME_E = 19,
+		parameter TIME_F = 2
 )
 (
     input  logic Clock,
@@ -29,6 +29,9 @@ module TrafficLight_Berzarina
     // Пешеходный светофор 1
     output logic P_Red,
     output logic P_Green,
+	 
+	 output logic P_Red_2,
+    output logic P_Green_2,
 
     // Семисегментные индикаторы
     output logic [7:0] Indicators,
@@ -218,6 +221,9 @@ module TrafficLight_Berzarina
 
     assign P_Red     = ~P_Red_int;
     assign P_Green   = ~P_Green_int;
+	 
+	 assign P_Red_2     = ~P_Red_int;
+    assign P_Green_2   = ~P_Green_int;
 
     // ============================================================
     // Делитель частоты до 1 Гц
